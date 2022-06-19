@@ -1,0 +1,476 @@
+<html>
+    <head>
+        <title>Factory 7</title>
+    </head>
+    <style>
+        td {
+            border: 1px solid black;
+        }
+        table {
+            border-collapse: collapse;
+        }
+    </style>
+    <body>
+        <canvas id='cvs'></canvas>
+        <br>
+        <span id='interface'></span>
+        <script>
+            const cvs = document.getElementById('cvs');
+            const ctx = cvs.getContext('2d');
+
+            cvs.width = 600;
+            cvs.height = 600;
+            cvs.style.border = '1px solid black';
+            cvs.style.cursor = 'crosshair';
+
+            let cx = 0;
+            let cy = 0;
+
+            let selected = '';
+
+            const colorCode = {
+                orange:'wood',
+                black:'coal',
+                grey:'cobblestone',
+                purple: 'stone'
+            }
+
+            const furnaceRecipes = {
+                cobblestone: {fuel:10, result:'purple', duration:2000}
+            }
+
+            const fuelAmount = {
+                coal: 10,
+                wood: 1
+            }
+
+            class Item {
+                constructor(x,y,c,r) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = c;
+                    this.r = 10;
+                    this.existing = true;
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(this.x,this.y,1,1);
+                }
+                move(x,y,destNode) {
+                    let dir = Math.atan2(y-this.y,x-this.x);
+                    this.dx = Math.cos(dir);
+                    this.dy = Math.sin(dir);
+                    this.destNode = destNode;
+                }
+                update() {
+                    if (this.destNode) {
+                        if (Math.abs(this.destNode.x-this.x)<2 && Math.abs(this.destNode.y-this.y)<2 && this.existing) {
+                            this.stop();
+                            if (this.destNode.inv instanceof Array) {
+                                this.destNode.inv.push(this);
+                            }
+                            else {
+                                this.destNode.give(this);
+                            }
+                            this.x = this.destNode.x;
+                            this.y = this.destNode.y;
+                            if (!this.destNode.next) {
+                                this.destroy();
+                            }
+                        }
+                    }
+                    this.x += this.dx;
+                    this.y += this.dy;
+                    this.move(this.destNode.x,this.destNode.y,this.destNode);
+                }
+                stop() {
+                    this.dx = 0;
+                    this.dy = 0;
+                }
+                destroy() {
+                    this.existing = false;
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>${colorCode[this.c]}</p>`
+                }
+            }
+
+            class Node {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.r = 10;
+                    this.c = 'cyan';
+                    this.inv = [];
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                transfer() {
+                    if (this.next) {
+                        this.inv.forEach(x=>{
+                            x.move(this.next.x,this.next.y,this.next);
+                        })
+                        this.inv = [];
+                    }
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>Just a node, connecting two components</p>`;
+                }
+            }
+
+            class CoalFactory {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = 'brown';
+                    this.r = 15;
+                    this.inv = [];
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                process() {
+                    if (this.inv) {
+                        this.inv.forEach(x=>{
+                            if (x.c == 'orange') {
+                                x.destroy();
+                                setTimeout(()=>{
+                                    let item = new Item(this.x,this.y,'black');
+                                    items.push(item);
+                                    if (this.next) {
+                                        item.move(this.next.x,this.next.y,this.next);
+                                    }
+                                },3000)
+                            }
+                            else {
+                                if (this.next) {
+                                    x.move(this.next.x,this.next.y,this.next);
+                                }
+                            }
+                        })
+                    }
+                    this.inv = [];
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>Turn wood into coal</p><p>1x wood => 1x coal</p><p>Processing time: 2seconds</p>`;
+                }
+            }
+
+            class WoodProducer {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = 'brown';
+                    this.r = 15;
+                    this.inv = [];
+                    this.cd = 3000;
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                produce() {
+                    let item = new Item(this.x,this.y,'orange')
+                    items.push(item);
+                    if (this.next) {
+                        item.move(this.next.x,this.next.y,this.next);
+                    }
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>Output 1 wood every 3 seconds</p>`;
+                }
+            }
+
+            class CobbleProducer {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = 'grey';
+                    this.r = 15;
+                    this.inv = [];
+                    this.cd = 2000;
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                produce() {
+                    let item = new Item(this.x,this.y,'grey')
+                    items.push(item);
+                    if (this.next) {
+                        item.move(this.next.x,this.next.y,this.next);
+                    }
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>Output 1 cobblestone every 2 seconds</p>`;
+                }
+            }
+
+            class Storage {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = 'lime';
+                    this.r = 15;
+                    this.inv = {};
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                give(object) {
+                    if (this.inv.hasOwnProperty(object.c)) {
+                        this.inv[object.c]++;
+                    }
+                    else {
+                        this.inv[object.c] = 1;
+                    }
+                    object.destroy();
+                }
+                showUI() {
+                    let table = '<table>';
+                    for (let x in this.inv) {
+                        table += `<tr><td>&nbsp;${colorCode[x]}&nbsp;</td><td>&nbsp;${this.inv[x]}&nbsp;</td></tr>`
+                    }
+                    table += '</table>'
+                    document.getElementById('interface').innerHTML = table;
+                }
+            }
+
+            class Furnace {
+                constructor(x,y) {
+                    this.x = x;
+                    this.y = y;
+                    this.c = 'black';
+                    this.r = 15;
+                    this.fuel = 0;
+                    this.inv = [];
+                }
+                render() {
+                    ctx.fillStyle = this.c;
+                    ctx.beginPath();
+                    ctx.arc(this.x,this.y,this.r,0,2*Math.PI);
+                    ctx.fill();
+                    ctx.closePath();
+                }
+                drawLinks() {
+                    if (this.next) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'black';
+                        ctx.moveTo(this.x,this.y);
+                        ctx.lineTo(this.next.x,this.next.y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+                update() {
+                    this.inv.forEach(x=>{
+                        if (furnaceRecipes.hasOwnProperty(colorCode[x.c]) && this.fuel>furnaceRecipes[colorCode[x.c]]?.fuel) {
+                            x.destroy();
+                            this.fuel -= furnaceRecipes[colorCode[x.c]].fuel
+                            setTimeout(()=>{
+                                let item = new Item(this.x,this.y,furnaceRecipes[colorCode[x.c]].result);
+                                items.push(item);
+                                if (this.next) {
+                                    item.move(this.next.x,this.next.y,this.next);
+                                }
+                                else {
+                                    item.destroy();
+                                }
+                            },furnaceRecipes[colorCode[x.c]].duration)
+                        }
+                        else if (fuelAmount.hasOwnProperty(colorCode[x.c])) {
+                            x.destroy();
+                            this.fuel += fuelAmount[colorCode[x.c]];
+                        }
+                        else {
+                            x.move(this.next.x,this.next.y,this.next);
+                        }
+                    })
+                    this.inv = [];
+                }
+                showUI() {
+                    document.getElementById('interface').innerHTML = `<p>Smelts items using fuel</p><p>Fuel: ${this.fuel}</p>`
+                }
+            }
+
+            let items = [];
+            let nodes = [new Node(200,200)];
+            let factories = [new CoalFactory(100,500)]
+            let producers = [new WoodProducer(300,300), new WoodProducer(50,50), new CobbleProducer(30,100), new CobbleProducer(500,100)]
+            let utiles = [new Storage(100,300), new Furnace(500,500), new Storage(400,400)];
+
+            let all = [items,nodes,factories,producers,utiles];
+            
+            function makeNode(x,y) {
+                let node = new Node(x,y);
+                nodes.push(node);
+                return node;
+            }
+
+            function init() {
+                producers[0].next = factories[0];
+                factories[0].next = utiles[1];
+                producers[1].next = utiles[0];
+                producers[2].next = utiles[0];
+                utiles[1].next = utiles[2];
+                producers[3].next = utiles[1];
+
+                producers.forEach(x=>{
+                    setInterval(()=>{
+                        x.produce();
+                    },x.cd);
+                })
+            }
+
+            init();
+            
+            function loop() {
+                requestAnimationFrame(loop);
+                ctx.clearRect(0,0,600,600);
+                nodes.forEach(x=>{
+                    x.render();
+                    x.transfer();
+                })
+                factories.forEach(x=>{
+                    x.render();
+                    x.process();
+                })
+                producers.forEach(x=>{
+                    x.render();
+                })
+                utiles.forEach(x=>{
+                    x.render();
+                    if (x.update) x.update();
+                })
+                nodes.forEach(x=>{
+                    x.drawLinks();
+                })
+                factories.forEach(x=>{
+                    x.drawLinks();
+                })
+                producers.forEach(x=>{
+                    x.drawLinks();
+                })
+                utiles.forEach(x=>{
+                    x.drawLinks();
+                })
+                items.forEach(x=>{
+                    x.render();
+                    x.update();
+                })
+                let inSomething = false;
+                all.forEach(x=>{
+                    x.forEach(a=>{
+                        if (Math.hypot(Math.abs(cx-a.x),Math.abs(cy-a.y))<a.r) {
+                            a.showUI();
+                            inSomething = true;
+                        }
+                    })
+                })
+                if (!inSomething) {
+                    document.getElementById('interface').innerHTML = '';
+                }
+                items = items.filter(x=>x.existing);
+            }
+
+            loop();
+
+            function renderCursor() {
+                ctx.strokeStyle = 'black';
+                ctx.beginPath();
+                ctx.moveTo(cx-5,cy);
+                ctx.lineTo(cx+5,cy);
+                ctx.stroke();
+                ctx.closePath();
+                ctx.beginPath();
+                ctx.moveTo(cx,cy-5);
+                ctx.lineTo(cx,cy+5);
+                ctx.stroke();
+                ctx.closePath();
+            }
+
+            document.addEventListener('mousemove',(e)=>{
+                let x = e.clientX;
+                let y = e.clientY;
+                if (x>cvs.getBoundingClientRect().left && x<cvs.getBoundingClientRect().left+600 && y>cvs.getBoundingClientRect().top && y<cvs.getBoundingClientRect().top+600) {
+                    cx = x-cvs.getBoundingClientRect().left;
+                    cy = y-cvs.getBoundingClientRect().top;
+                }
+            })
+        </script>
+    </body>
+</html>
