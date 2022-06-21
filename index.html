@@ -9,8 +9,20 @@
         table {
             border-collapse: collapse;
         }
+        .selectionBtn {
+            height:30px;
+        }
     </style>
     <body>
+        <div id='toolbar'>
+            <button id='nodeBtn' class='selectionBtn' onclick='select("nodeBtn",Node)'>Node</button>
+            <button id='cobbleProducerBtn' class='selectionBtn' onclick='select("cobbleProducerBtn",CobbleProducer)'>Cobblestone producer</button>
+            <button id='woodProducerBtn' class='selectionBtn' onclick='select("woodProducerBtn",WoodProducer)'>Wood producer</button>
+            <button id='coalFactoryBtn' class='selectionBtn' onclick='select("coalFactoryBtn",CoalFactory)'>Coal factory</button>
+            <button id='storageBtn' class='selectionBtn' onclick='select("storageBtn",Storage)'>Storage</button>
+            <button id='selectionToolBtn' class='selectionBtn' onclick='unselect()'>Unselect all</button>
+            <button id='linkingToolBtn' class='selectionBtn' onclick='link()'>Linking tool</button>
+        </div>
         <canvas id='cvs'></canvas>
         <br>
         <span id='interface'></span>
@@ -26,7 +38,13 @@
             let cx = 0;
             let cy = 0;
 
-            let selected = '';
+            let selected = undefined;
+            let linkingSelected1 = undefined;
+            let cursorMode = 'normal';
+
+            let on = undefined;
+
+            let loopContinue = true;
 
             const colorCode = {
                 orange:'wood',
@@ -44,7 +62,9 @@
                 wood: 1
             }
 
-            class Item {
+            const Item = class Item {
+                static r=10;
+                static type=1;
                 constructor(x,y,c,r) {
                     this.x = x;
                     this.y = y;
@@ -100,11 +120,13 @@
                 }
             }
 
-            class Node {
+            const Node = class Node {
+                static r=15;
+                static type=2;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
-                    this.r = 10;
+                    this.r = 15;
                     this.c = 'cyan';
                     this.inv = [];
                 }
@@ -138,7 +160,9 @@
                 }
             }
 
-            class CoalFactory {
+            const CoalFactory = class CoalFactory {
+                static r=15;
+                static type=3;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
@@ -186,11 +210,13 @@
                     this.inv = [];
                 }
                 showUI() {
-                    document.getElementById('interface').innerHTML = `<p>Turn wood into coal</p><p>1x wood => 1x coal</p><p>Processing time: 2seconds</p>`;
+                    document.getElementById('interface').innerHTML = `<p>Turn wood into coal</p><p>1x wood => 1x coal</p><p>Processing time: 3 seconds</p>`;
                 }
             }
 
-            class WoodProducer {
+            const WoodProducer = class WoodProducer {
+                static r=15;
+                static type=4;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
@@ -217,9 +243,9 @@
                     }
                 }
                 produce() {
-                    let item = new Item(this.x,this.y,'orange')
-                    items.push(item);
                     if (this.next) {
+                        let item = new Item(this.x,this.y,'orange')
+                        items.push(item);
                         item.move(this.next.x,this.next.y,this.next);
                     }
                 }
@@ -228,7 +254,9 @@
                 }
             }
 
-            class CobbleProducer {
+            const CobbleProducer = class CobbleProducer {
+                static r=15;
+                static type=4;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
@@ -255,9 +283,9 @@
                     }
                 }
                 produce() {
-                    let item = new Item(this.x,this.y,'grey')
-                    items.push(item);
                     if (this.next) {
+                        let item = new Item(this.x,this.y,'grey')
+                        items.push(item);
                         item.move(this.next.x,this.next.y,this.next);
                     }
                 }
@@ -266,7 +294,9 @@
                 }
             }
 
-            class Storage {
+            const Storage = class Storage {
+                static r=15;
+                static type=5;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
@@ -310,7 +340,9 @@
                 }
             }
 
-            class Furnace {
+            const Furnace = class Furnace {
+                static r = 15;
+                static type=5;
                 constructor(x,y) {
                     this.x = x;
                     this.y = y;
@@ -391,7 +423,9 @@
 
                 producers.forEach(x=>{
                     setInterval(()=>{
-                        x.produce();
+                        if (loopContinue) {
+                            x.produce();
+                        }
                     },x.cd);
                 })
             }
@@ -399,7 +433,9 @@
             init();
             
             function loop() {
-                requestAnimationFrame(loop);
+                if (loopContinue) {
+                    requestAnimationFrame(loop);
+                }
                 ctx.clearRect(0,0,600,600);
                 nodes.forEach(x=>{
                     x.render();
@@ -441,26 +477,69 @@
                         }
                     })
                 })
+                items.forEach(a=>{
+                    if (Math.hypot(Math.abs(cx-a.x),Math.abs(cy-a.y))<a.r) {
+                        a.showUI();
+                        inSomething = true;
+                    }
+                })
                 if (!inSomething) {
                     document.getElementById('interface').innerHTML = '';
                 }
+                renderCursor();
                 items = items.filter(x=>x.existing);
             }
 
             loop();
 
             function renderCursor() {
-                ctx.strokeStyle = 'black';
-                ctx.beginPath();
-                ctx.moveTo(cx-5,cy);
-                ctx.lineTo(cx+5,cy);
-                ctx.stroke();
-                ctx.closePath();
-                ctx.beginPath();
-                ctx.moveTo(cx,cy-5);
-                ctx.lineTo(cx,cy+5);
-                ctx.stroke();
-                ctx.closePath();
+                if (selected) {
+                    let possible = true;
+                    all.forEach(a=>{
+                        a.forEach(b=>{
+                            if (Math.hypot(Math.abs(cx-b.x),Math.abs(cy-b.y))<b.r+selected.r) {
+                                possible = false;
+                            }
+                        })
+                    })
+                    items.forEach(b=>{
+                        if (Math.hypot(Math.abs(cx-b.x),Math.abs(cy-b.y))<b.r+selected.r) {
+                            possible = false;
+                        }
+                    })
+                    if (!possible) {
+                        ctx.strokeStyle = 'red';
+                    }
+                    else {
+                        ctx.strokeStyle = 'black';
+                    }
+                    ctx.beginPath();
+                    ctx.arc(cx,cy,selected.r,0,2*Math.PI);
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            }
+
+            function select(id, comClass) {
+                Array.from(document.getElementsByClassName('selectionBtn')).forEach(x=>{x.style.backgroundColor = 'white'});
+                document.getElementById(id).style.backgroundColor = 'lime';
+                selected = comClass;
+                linkingSelected1 = undefined;
+                linkingSelected2 = undefined;
+                cursorMode = 'selection';
+            }
+
+            function unselect() {
+                Array.from(document.getElementsByClassName('selectionBtn')).forEach(x=>{x.style.backgroundColor = 'white'});
+                selected = undefined;
+                cursorMode = 'normal';
+            }
+
+            function link() {
+                selected = undefined;
+                Array.from(document.getElementsByClassName('selectionBtn')).forEach(x=>{x.style.backgroundColor = 'white'});
+                cursorMode = 'link';
+                document.getElementById('linkingToolBtn').style.backgroundColor = 'lime';
             }
 
             document.addEventListener('mousemove',(e)=>{
@@ -471,6 +550,77 @@
                     cy = y-cvs.getBoundingClientRect().top;
                 }
             })
+
+            cvs.addEventListener('mousedown',(e)=>{
+                let x = e.clientX - cvs.getBoundingClientRect().left;
+                let y = e.clientY - cvs.getBoundingClientRect().top;
+                if (selected && cursorMode=='selection') {
+                    let possible = true;
+                    all.forEach(a=>{
+                        a.forEach(b=>{
+                            if (Math.hypot(Math.abs(x-b.x),Math.abs(y-b.y))<b.r+selected.r) {
+                                possible = false;
+                            }
+                        })
+                    })
+                    items.forEach(b=>{
+                        if (Math.hypot(Math.abs(x-b.x),Math.abs(y-b.y))<b.r+selected.r) {
+                            possible = false;
+                        }
+                    })
+                    if (possible) {
+                        switch (selected.type) {
+                            case 2:
+                                nodes.push(new selected(x,y));
+                                break;
+                            case 3:
+                                factories.push(new selected(x,y));
+                                break;
+                            case 4:
+                                producers.push(new selected(x,y));
+                                setInterval(()=>{
+                                    producers[producers.length-1].produce();
+                                },producers[producers.length-1].cd);
+                                break;
+                            case 5:
+                                utiles.push(new selected(x,y));
+                        }
+                    }
+                }
+                else if (cursorMode=='link') {
+                    all.forEach(a=>{
+                        a.forEach(b=>{
+                            if (Math.hypot(Math.abs(cx-b.x),Math.abs(cy-b.y))<b.r) {
+                                on=b;
+                            }
+                        })
+                    })
+                    items.forEach(b=>{
+                        if (Math.hypot(Math.abs(cx-b.x),Math.abs(cy-b.y))<b.r) {
+                            on=b;
+                        }
+                    })
+                    console.log(on);
+                    if (!linkingSelected1) {
+                        console.log('no 1')
+                        linkingSelected1 = on;
+                    }
+                    else {
+                        console.log('yes 1')
+                        linkingSelected1.next = on;
+                        linkingSelected1 = undefined;
+                    }
+                }
+            })
+
+            window.onblur = ()=>{
+                loopContinue = false;
+            }
+
+            window.onfocus = ()=>{
+                loopContinue = true;
+                loop();
+            }
         </script>
     </body>
 </html>
